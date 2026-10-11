@@ -383,3 +383,46 @@ def conv_backward(dout, x, w, stride=1, padding=1):
         dw += dw_i
     db = dout.sum(axis=(0, 2, 3))                       # b[co] cộng vào mọi (n, i, j) của kênh co
     return dx, dw, db
+
+def backward(probs, y, cache, params):
+    """
+    Lan truyền ngược qua toàn mạng, thứ tự ngược với forward_with_cache
+    Mỗi lớp lấy input của chính nó lúc forward từ cache
+
+    probs: (N, num_classes) - softmax(logits)
+    y: (N,) - Nhãn đúng
+    cache: dict từ forward_with_cache (phải chạy với train=True)
+    params: dict tham số (cần W để tính dx)
+
+    Trả về:
+        g: dict gradient, cùng key và shape với params
+           (bn_state không có gradient, đã tự cập nhật trong forward)
+    """
+    g = {}
+
+    # Lớp đầu ra: softmax + CE → linear 6
+    dz6 = softmax_ce_backward(probs, y)
+    da5, g["w6"], g["b6"] = linear_backward(dz6, cache["a5"], params["w6"])
+
+    # FC ẩn 2: forward là linear → relu → dropout, nên ngược lại là dropout → relu → linear
+    dz5 = relu_backward(dropout_backward(da5, cache["mask5"]), cache["z5"])
+    da4, g["w5"], g["b5"] = linear_backward(dz5, cache["a4"], params["w5"])
+
+    # FC ẩn 1
+    dz4 = relu_backward(dropout_backward(da4, cache["mask4"]), cache["z4"])
+    df, g["w4"], g["b4"] = linear_backward(dz4, cache["f"], params["w4"])
+
+    # (N, 8192) → (N, 128, 8, 8)
+    dx = unflatten(df, cache)
+
+    # 3 khối conv, đi ngược 3 → 2 → 1: MaxPool → ReLU → BN → Conv
+    # Lưu ý: g["b1..b3"] ≈ 0 vì BN trừ mean đã triệt tiêu bias của conv (không phải lỗi)
+    for i in (3, 2, 1):
+        da = maxpool_backward(dx, cache[f"a{i}"])
+        dzn = relu_backward(da, cache[f"zn{i}"])
+        dz, g[f"gamma{i}"], g[f"beta{i}"] = batchnorm_backward(dzn, cache[f"bn{i}"])
+        dx, g[f"w{i}"], g[f"b{i}"] = conv_backward(dz, cache[f"x{i}"], params[f"w{i}"])
+
+    return g
+
+
