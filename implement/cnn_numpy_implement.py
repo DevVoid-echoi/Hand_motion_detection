@@ -242,3 +242,144 @@ def forward_with_cache(x, params, bn_state, train=True):
     return logits, cache
 
 #           -----Backward pass-----
+# Quy ước: mỗi hàm nhận dout = dL/d(output của lớp) và trả về
+#   dx = dL/d(input của lớp) để truyền tiếp cho lớp phía trước
+#   dW, db, ... = gradient tham số của lớp (nếu có)
+# Gradient luôn cùng shape với biến tương ứng (dW.shape == W.shape, dx.shape == x.shape)
+
+def softmax_ce_backward(probs, y):
+    """
+    Gộp softmax + cross-entropy: dL/dz = (p - one_hot(y)) / N
+    Lớp đúng nhận gradient âm (logit sẽ tăng), lớp sai nhận gradient dương (logit sẽ giảm)
+    Chia N vì loss là trung bình trên batch
+
+    probs: (N, num_classes), y: (N,)
+    """
+    N = probs.shape[0]
+    dz = probs.copy()
+    dz[np.arange(N), y] -= 1                            # Trừ 1 tại lớp đúng của từng ảnh
+    return dz / N
+
+def linear_backward(dout, x, W):
+    """
+    Forward: out = x @ W.T + b
+
+    dout: (N, out), x: (N, in) - input lúc forward, W: (out, in)
+    """
+    dx = dout @ W                                       # (N, in)
+    dw = dout.T @ x                                     # (out, in): phép nhân ma trận tự cộng dồn trên N ảnh
+    db = dout.sum(axis=0)                               # (out,): b cộng vào mọi ảnh → tổng theo batch
+    return dx, dw, db
+
+def dropout_backward(dout, mask):
+    """
+    Forward: out = x * mask (mask là hằng số) → dx = dout * mask
+    Neuron bị tắt thì gradient = 0, neuron giữ lại thì nhân cùng hệ số 1/(1-p)
+    mask = None khi train=False (dropout không làm gì) → gradient đi thẳng qua
+    """
+    return dout if mask is None else dout * mask
+
+def relu_backward(dout, z):
+    """
+    Đạo hàm ReLU: 1 nếu z > 0, ngược lại 0 → chỉ cho gradient đi qua chỗ đã "mở" lúc forward
+    z: input của ReLU lúc forward
+    """
+    return dout * (z>0)
+
+def unflatten(df, cache):
+    """
+    Flatten chỉ sắp xếp lại phần tử, không tính toán → backward chỉ cần reshape về shape cũ
+    df: (N, C*H*W) → (N, C, H, W)
+    """
+    return df.reshape(cache["pool_shape"])
+
+def maxpool_backward(dout, a, k=2):
+    """
+    Output mỗi ô kxk chỉ phụ thuộc phần tử lớn nhất
+    => Gradient chỉ chảy về đúng vị trí max, các vị trí khác = 0
+
+    dout: (N, C, H//k, W//k)
+    a: (N, C, H, W) - input của maxpool lúc forward
+    """
+    n, c, h, w = a.shape
+    dx = np.zeros_like(a)
+    # Lưới chỉ số (ảnh, kênh) để xử lý mọi (n, c) cùng lúc bằng fancy indexing
+    nn_, cc = np.meshgrid(np.arange(n), np.arange(c), indexing="ij")
+    for i in range(h // k):
+        for j in range(w // k):
+            win = a[:, :, i*k:(i+1)*k, j*k:(j+1)*k].reshape(n, c, k*k)   # Ô kxk, duỗi thành k*k phần tử
+            idx = win.argmax(axis=2)                    # Vị trí max trong ô (chỉ chọn 1 nếu bằng nhau)
+            r, s = idx // k, idx % k                    # Đổi về (hàng, cột) trong ô
+            dx[nn_, cc, i*k + r, j*k + s] += dout[:, :, i, j]
+    return dx
+
+def batchnorm_backward(dout, cache):
+    """
+    Forward: x_hat = (x - mu) / std, out = gamma * x_hat + beta
+    mu, std được tính từ chính x → mỗi x ảnh hưởng output theo 3 đường:
+    trực tiếp, qua mu, qua std. Cộng 3 đường lại và rút gọn:
+        dx = (m * dx_hat - sum(dx_hat) - x_hat * sum(dx_hat * x_hat)) / (m * std)
+    (Chỉ đúng cho train=True; khi eval mu, std là hằng số nhưng không chạy backward)
+
+    dout: (N, C, H, W)
+    cache: (x_hat, std, gamma) lưu từ batchnorm forward
+    """
+    x_hat, std, gamma = cache
+    N, C, H, W = dout.shape
+    m = N * H * W                                       # Số phần tử mỗi kênh
+
+    # Gamma/beta dùng chung cho mọi (n, h, w) của một kênh → cộng dồn
+    dgamma = (dout * x_hat).sum(axis=(0, 2, 3))
+    dbeta = dout.sum(axis=(0, 2, 3))
+
+    # Đi ngược qua phép scale gamma
+    dx_hat = dout * gamma[None, :, None, None]
+
+    # Đi ngược qua chuẩn hóa
+    s1 = dx_hat.sum(axis=(0, 2, 3))[None, :, None, None]                # Đường qua mu: bỏ thành phần dịch đều cả kênh
+    s2 = (dx_hat * x_hat).sum(axis=(0, 2, 3))[None, :, None, None]      # Đường qua std: bỏ thành phần co giãn đều
+    dx = (m * dx_hat - s1 - x_hat * s2) / (m * std[None, :, None, None])
+    return dx, dgamma, dbeta
+
+def conv_single_backward(dout, x, w, stride=1, padding=1):
+    """
+    Backward tích chập cho MỘT ảnh
+    Vòng lặp giống conv_single, nhưng thay vì "đọc vùng → nhân → cộng"
+    thì "nhận gradient → rải ngược về vùng đó"
+
+    dout: (C_out, H_out, W_out)
+    x: (C_in, H, W) - input của conv lúc forward
+    w: (C_out, C_in, K, K)
+    """
+    c_out, _, k, _ = w.shape
+    _, H_out, W_out = dout.shape
+    x_pad = np.pad(x, ((0, 0), (padding, padding), (padding, padding)))
+    dx_pad = np.zeros_like(x_pad)
+    dw = np.zeros_like(w)
+
+    for co in range (c_out):
+        for i in range(H_out):
+            for j in range(W_out):
+                r, c = i * stride, j * stride
+                g = dout[co, i, j]
+                dw[co] += g * x_pad[:, r: r + k, c: c + k]          # Bộ lọc dùng ở mọi vị trí → cộng dồn
+                dx_pad[:, r: r + k, c: c + k] += g * w[co]          # Pixel nằm trong nhiều vùng → cộng dồn
+
+    # Bỏ viền padding: viền 0 không phải input thật
+    dx = dx_pad[:, padding: -padding, padding: -padding] if padding > 0 else dx_pad
+    return dx, dw
+
+def conv_backward(dout, x, w, stride=1, padding=1):
+    """
+    Backward tích chập cho cả batch
+    dx tính riêng từng ảnh, dw cộng dồn trên batch (mọi ảnh dùng chung w)
+
+    dout: (N, C_out, H_out, W_out), x: (N, C_in, H, W)
+    """
+    dx = np.zeros_like(x)
+    dw = np.zeros_like(w)
+    for i in range(x.shape[0]):
+        dx[i], dw_i = conv_single_backward(dout[i], x[i], w, stride, padding)
+        dw += dw_i
+    db = dout.sum(axis=(0, 2, 3))                       # b[co] cộng vào mọi (n, i, j) của kênh co
+    return dx, dw, db
