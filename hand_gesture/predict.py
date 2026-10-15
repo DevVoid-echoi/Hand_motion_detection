@@ -1,6 +1,6 @@
 """
-predict.py - Real-time prediction từ webcam
-Dùng MediaPipe Tasks API (v1.0+) detect tay → crop → CNN predict → trả về gesture + confidence
+predict.py - Real-time prediction from the webcam
+Uses the MediaPipe Tasks API (v1.0+) to detect the hand → crop → CNN predict → return gesture + confidence
 """
 import time
 import cv2
@@ -21,30 +21,30 @@ from .landmarks import (
 
 
 class HandGesturePredictor:
-    """Dự đoán cử chỉ tay real-time từ webcam."""
+    """Predict hand gestures in real time from the webcam."""
 
     def __init__(self, model_path=MODEL_SAVE_PATH):
         # Device
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        
+
         # Load CNN model
         self.model = load_model(model_path, device=self.device)
         self.transform = get_inference_transform()
-        
+
         # MediaPipe HandLandmarker (Tasks API v1.0+)
         self.hand_landmarker = create_hand_landmarker()
 
         # Swipe tracking
         self._wrist_history = []  # list of (x, timestamp)
-        
-        print(f"✓ Model loaded trên {self.device}")
+
+        print(f"✓ Model loaded on {self.device}")
 
     def _detect_swipe(self, landmarks, frame_width):
         """
-        Detect vuốt trái/phải dựa trên vị trí cổ tay qua thời gian.
-        
+        Detect left/right swipes from the wrist position over time.
+
         Returns:
-            "swipe_left", "swipe_right", hoặc None
+            "swipe_left", "swipe_right", or None
         """
         wrist = landmarks[WRIST_IDX]
         current_x = wrist.x * frame_width
@@ -52,7 +52,7 @@ class HandGesturePredictor:
 
         self._wrist_history.append((current_x, current_time))
 
-        # Xóa lịch sử cũ
+        # Drop old history
         self._wrist_history = [
             (x, t) for x, t in self._wrist_history
             if current_time - t <= SWIPE_TIME_WINDOW
@@ -73,11 +73,11 @@ class HandGesturePredictor:
 
     def predict_frame(self, frame):
         """
-        Dự đoán cử chỉ từ 1 frame.
-        
+        Predict the gesture from a single frame.
+
         Args:
-            frame: BGR frame từ OpenCV
-            
+            frame: BGR frame from OpenCV
+
         Returns:
             (gesture_name, confidence, extra_data, annotated_frame)
         """
@@ -91,26 +91,26 @@ class HandGesturePredictor:
 
         if detection_result.hand_landmarks:
             for landmarks in detection_result.hand_landmarks:
-                # Vẽ landmarks
+                # Draw landmarks
                 draw_landmarks(frame, landmarks)
-                
-                # Trích xuất tọa độ ngón trỏ
+
+                # Extract index fingertip coordinates
                 index_tip = landmarks[INDEX_FINGER_TIP_IDX]
                 extra_data = {"x": index_tip.x, "y": index_tip.y}
 
-                # Kiểm tra swipe trước
+                # Check for a swipe first
                 swipe = self._detect_swipe(landmarks, frame.shape[1])
                 if swipe:
                     gesture_name = swipe
                     confidence = 1.0
                     break
 
-                # Nếu không phải swipe → dùng CNN predict
-                # TẠO ẢNH KHUNG XƯƠNG TRÊN NỀN ĐEN
+                # Not a swipe → use the CNN
+                # CREATE A SKELETON IMAGE ON A BLACK BACKGROUND
                 black_canvas = np.zeros_like(frame)
                 draw_landmarks(black_canvas, landmarks)
-                
-                # Cắt vùng khung xương đưa cho CNN
+
+                # Crop the skeleton region for the CNN
                 hand_crop = crop_hand(black_canvas, landmarks)
                 if hand_crop is not None:
                     # Preprocess
@@ -122,18 +122,18 @@ class HandGesturePredictor:
                         outputs = self.model(input_tensor)
                         probabilities = torch.softmax(outputs, dim=1)
                         conf, predicted = torch.max(probabilities, 1)
-                        
+
                         confidence = conf.item()
                         if confidence >= CONFIDENCE_THRESHOLD:
                             pred_name = GESTURES[predicted.item()]
-                            # Không cho phép CNN trigger các hành động động (vuốt) khi đang đứng yên
-                            # Bỏ qua hoàn toàn để không kích hoạt nhầm chức năng khác
+                            # Don't let the CNN trigger motion gestures (swipes) while the hand is still
+                            # Ignore them entirely to avoid accidentally triggering other actions
                             if pred_name in ["swipe_left", "swipe_right"]:
                                 gesture_name = None
                             else:
                                 gesture_name = pred_name
 
-        # Vẽ kết quả lên frame
+        # Draw the result on the frame
         if gesture_name:
             color = (0, 255, 0) if confidence > 0.8 else (0, 255, 255)
             text = f"{gesture_name} ({confidence:.0%})"
@@ -146,20 +146,20 @@ class HandGesturePredictor:
         return gesture_name, confidence, extra_data, frame
 
     def close(self):
-        """Giải phóng resources."""
+        """Release resources."""
         self.hand_landmarker.close()
 
 
 def run_prediction_demo():
-    """Chạy demo nhận diện real-time (chỉ predict, không điều khiển)."""
+    """Run the real-time recognition demo (prediction only, no control)."""
     predictor = HandGesturePredictor()
     cap = cv2.VideoCapture(CAMERA_INDEX)
 
     if not cap.isOpened():
-        print("✗ Không mở được webcam!")
+        print("✗ Could not open webcam!")
         return
 
-    print("\n  Demo nhận diện cử chỉ - Nhấn [Q] để thoát\n")
+    print("\n  Gesture recognition demo - Press [Q] to quit\n")
 
     while True:
         ret, frame = cap.read()
@@ -182,18 +182,18 @@ def run_prediction_demo():
 
 
 def run_realtime_controller():
-    """Chạy chế độ điều khiển máy tính thực tế."""
+    """Run the actual computer control mode."""
     from .gesture_controller import GestureController
-    
+
     predictor = HandGesturePredictor()
     controller = GestureController()
     cap = cv2.VideoCapture(CAMERA_INDEX)
 
     if not cap.isOpened():
-        print("✗ Không mở được webcam!")
+        print("✗ Could not open webcam!")
         return
 
-    print("\n  Đang chạy Controller - Nhấn [Q] để thoát\n")
+    print("\n  Controller running - Press [Q] to quit\n")
 
     while True:
         ret, frame = cap.read()
@@ -203,13 +203,13 @@ def run_realtime_controller():
         frame = cv2.flip(frame, 1)
         gesture, confidence, extra_data, annotated = predictor.predict_frame(frame)
 
-        # Luôn gọi execute (kể cả khi gesture là None) để Controller reset trạng thái tay
+        # Always call execute (even when gesture is None) so the controller resets its hand state
         action_result = controller.execute(gesture, extra_data)
 
         if gesture:
             if action_result:
                 print(f"  → {gesture} ({confidence:.0%}) | Action: {action_result}")
-                # Hiện action trên màn hình
+                # Show the action on screen
                 cv2.putText(annotated, action_result, (10, 80),
                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 255), 2)
 

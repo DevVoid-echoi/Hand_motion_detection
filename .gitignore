@@ -19,7 +19,7 @@ Thumbs.db
 # Claude Code (local, per-user settings)
 .claude/settings.local.json
 
-# Training artifacts (trừ model chính models/best_model.pth)
+# Training artifacts (except the main model models/best_model.pth)
 runs/
 *.log
 models/*.pth
