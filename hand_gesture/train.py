@@ -1,5 +1,5 @@
 """
-train.py - Pipeline huấn luyện CNN model
+train.py - CNN model training pipeline
 """
 import os
 import time
@@ -15,18 +15,18 @@ from .config import (
 
 
 def train_model():
-    """Huấn luyện model CNN với early stopping."""
-    
+    """Train the CNN model with early stopping."""
+
     # === Setup ===
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"🖥  Device: {device}")
-    
+
     # Load data
     train_loader, val_loader, dataset = get_dataloaders()
-    
-    # Tạo model
+
+    # Create model
     model = get_model(num_classes=NUM_CLASSES, device=device)
-    
+
     # Loss & Optimizer
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
@@ -34,7 +34,7 @@ def train_model():
         optimizer, mode='min', factor=0.5, patience=3
     )
 
-    # Tạo thư mục lưu model
+    # Create the model output directory
     os.makedirs(os.path.dirname(MODEL_SAVE_PATH), exist_ok=True)
 
     # === Training Loop ===
@@ -116,12 +116,12 @@ def train_model():
         else:
             patience_counter += 1
             if patience_counter >= EARLY_STOP_PATIENCE:
-                print(f"\n⏹  Early stopping tại epoch {epoch+1}")
+                print(f"\n⏹  Early stopping at epoch {epoch+1}")
                 break
 
     elapsed = time.time() - start_time
     print(f"\n{'='*60}")
-    print(f"  Training hoàn tất trong {elapsed:.1f}s")
+    print(f"  Training finished in {elapsed:.1f}s")
     print(f"  Best Val Loss: {best_val_loss:.4f}")
     print(f"  Model saved: {MODEL_SAVE_PATH}")
     print(f"{'='*60}")

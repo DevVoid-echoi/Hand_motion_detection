@@ -1,28 +1,28 @@
 """
-gesture_controller.py - Ánh xạ cử chỉ tay sang hành động điều khiển máy tính
+gesture_controller.py - Map hand gestures to computer control actions
 """
 import time
 import pyautogui
 from .config import COOLDOWN_SECONDS
 
-# Tắt failsafe pyautogui (cần thiết nếu chuột di chuyển nhiều)
+# Keep pyautogui failsafe on (move the mouse to a screen corner to abort)
 pyautogui.FAILSAFE = True
-pyautogui.PAUSE = 0  # Chỉnh về 0 để loại bỏ hoàn toàn độ trễ 50ms mặc định
+pyautogui.PAUSE = 0  # Set to 0 to remove the default 50ms delay entirely
 
 
 class GestureController:
     """
-    Điều khiển máy tính dựa trên cử chỉ tay.
-    
-    Bảng ánh xạ:
+    Control the computer based on hand gestures.
+
+    Mapping:
         fist        → Play/Pause media
         open_palm   → Mute/Unmute
-        thumbs_up   → Tăng âm lượng
-        thumbs_down → Giảm âm lượng
-        peace       → Chụp screenshot
-        point       → (Dành cho di chuột - cần xử lý riêng)
-        swipe_left  → Slide trước (phím Left)
-        swipe_right → Slide tiếp (phím Right)
+        thumbs_up   → Volume up
+        thumbs_down → Volume down
+        peace       → Take a screenshot
+        point       → (Mouse movement - handled separately)
+        swipe_left  → Previous slide (Left key)
+        swipe_right → Next slide (Right key)
     """
 
     def __init__(self):
@@ -30,14 +30,14 @@ class GestureController:
         self.last_gesture = None     # Track last gesture for edge-triggering
         self._volume_controller = None
         self._init_volume_control()
-        
-        # Biến phục vụ làm mượt chuột (Exponential Moving Average)
+
+        # State for cursor smoothing (Exponential Moving Average)
         self.prev_x = 0
         self.prev_y = 0
-        self.smoothing_factor = 0.6  # Tăng lên 0.6 để chuột phản hồi nhanh hơn, bám sát tay hơn
+        self.smoothing_factor = 0.6  # Raised to 0.6 so the cursor responds faster and follows the hand more closely
 
     def _init_volume_control(self):
-        """Khởi tạo pycaw cho điều khiển âm lượng Windows."""
+        """Initialize pycaw for Windows volume control."""
         try:
             from ctypes import cast, POINTER
             from comtypes import CLSCTX_ALL
@@ -52,20 +52,20 @@ class GestureController:
             )
             print("✓ Volume controller initialized")
         except Exception as e:
-            print(f"⚠ Không thể khởi tạo volume controller: {e}")
-            print("  Sẽ dùng phím tắt thay thế.")
+            print(f"⚠ Could not initialize volume controller: {e}")
+            print("  Falling back to media keys.")
             self._volume_controller = None
 
     def _is_cooldown(self, gesture):
-        """Kiểm tra xem gesture có đang trong thời gian cooldown không."""
-        # Cử chỉ di chuyển chuột ('point') cần cập nhật liên tục (60 FPS), KHÔNG dùng cooldown
+        """Check whether the gesture is still in its cooldown period."""
+        # Cursor movement ('point') needs continuous updates (60 FPS), so NO cooldown
         if gesture == "point":
             return False
-            
+
         now = time.time()
         last_time = self._last_action_time.get(gesture, 0)
-        
-        # Âm lượng cần kích hoạt liên tục nhưng nhanh hơn (0.3s thay vì 1s)
+
+        # Volume should repeat continuously but faster (0.3s instead of 1s)
         cooldown_limit = 0.3 if gesture in ["thumbs_up", "thumbs_down"] else COOLDOWN_SECONDS
 
         if now - last_time < cooldown_limit:
@@ -75,31 +75,31 @@ class GestureController:
 
     def execute(self, gesture, extra_data=None):
         """
-        Thực thi action tương ứng với gesture.
-        
+        Execute the action for the given gesture.
+
         Args:
-            gesture: Tên cử chỉ (string)
-            extra_data: Dữ liệu bổ sung (vd: tọa độ ngón tay cho 'point')
-            
+            gesture: Gesture name (string)
+            extra_data: Additional data (e.g. fingertip coordinates for 'point')
+
         Returns:
-            Mô tả action đã thực hiện, hoặc None nếu cooldown
+            Description of the action performed, or None if on cooldown
         """
-        # Nếu mất dấu tay hoặc không có cử chỉ -> reset trạng thái
+        # Hand lost or no gesture -> reset state
         if not gesture:
             self.last_gesture = None
             return None
 
-        # Danh sách các cử chỉ chỉ kích hoạt 1 lần duy nhất cho đến khi hạ tay xuống
+        # Gestures that fire only once until the hand is lowered
         one_shot_gestures = ["fist", "open_palm", "peace", "pinch", "swipe_left", "swipe_right"]
 
-        # Nếu cử chỉ này thuộc loại 1-lần và GIỐNG HỆT cử chỉ của frame trước -> Bỏ qua
+        # If this is a one-shot gesture and IDENTICAL to the previous frame's gesture -> skip
         if gesture in one_shot_gestures and gesture == self.last_gesture:
             return None
 
-        # Cập nhật trạng thái cử chỉ hiện tại
+        # Update the current gesture state
         self.last_gesture = gesture
 
-        # Kiểm tra cooldown (tránh rung nhiễu/debounce)
+        # Check cooldown (debounce against jitter)
         if self._is_cooldown(gesture):
             return None
 
@@ -138,7 +138,7 @@ class GestureController:
             return "🔇 Toggle Mute"
 
     def _volume_up(self, _=None):
-        """Tăng âm lượng 5%."""
+        """Increase volume by 5%."""
         if self._volume_controller:
             current = self._volume_controller.GetMasterVolumeLevelScalar()
             new_vol = min(1.0, current + 0.05)
@@ -149,7 +149,7 @@ class GestureController:
             return "🔊 Volume Up"
 
     def _volume_down(self, _=None):
-        """Giảm âm lượng 5%."""
+        """Decrease volume by 5%."""
         if self._volume_controller:
             current = self._volume_controller.GetMasterVolumeLevelScalar()
             new_vol = max(0.0, current - 0.05)
@@ -160,61 +160,61 @@ class GestureController:
             return "🔉 Volume Down"
 
     def _screenshot(self, _=None):
-        """Chụp screenshot."""
+        """Take a screenshot."""
         pyautogui.hotkey("win", "shift", "s")  # Windows Snipping Tool
         return "📸 Screenshot"
 
     def _move_cursor(self, extra_data=None):
-        """Di chuyển chuột theo vị trí ngón trỏ (Có làm mượt bằng EMA)."""
+        """Move the cursor to the index fingertip position (smoothed with EMA)."""
         if extra_data and "x" in extra_data and "y" in extra_data:
             screen_w, screen_h = pyautogui.size()
-            # Định nghĩa "Vùng hoạt động" (Active Region) ở giữa camera.
-            # Bỏ đi 20% lề xung quanh. Nếu tay nằm trong 60% ở giữa này, nó sẽ bao phủ toàn bộ màn hình.
+            # Define an "Active Region" in the middle of the camera view.
+            # Drop a 20% margin on each side; the central 60% maps to the whole screen.
             margin_x = 0.2
             margin_y = 0.2
             active_w = 1.0 - 2 * margin_x
             active_h = 1.0 - 2 * margin_y
 
-            # Tính toán vị trí tương đối của tay trong vùng hoạt động
+            # Compute the hand's relative position within the active region
             norm_x = (extra_data["x"] - margin_x) / active_w
             norm_y = (extra_data["y"] - margin_y) / active_h
 
-            # Giới hạn giá trị trong khoảng [0, 1] để chuột không văng ra ngoài mép
+            # Clamp to [0, 1] so the cursor doesn't fly past the screen edges
             norm_x = max(0.0, min(1.0, norm_x))
             norm_y = max(0.0, min(1.0, norm_y))
-            
-            # Tọa độ thô đã được khuếch đại
+
+            # Raw (amplified) coordinates
             raw_x = norm_x * screen_w
             raw_y = norm_y * screen_h
-            
-            # Khởi tạo giá trị nếu là lần đầu di chuyển
+
+            # Initialize on the first movement
             if self.prev_x == 0 and self.prev_y == 0:
                 self.prev_x, self.prev_y = raw_x, raw_y
 
-            # Áp dụng thuật toán Exponential Moving Average (EMA)
+            # Apply Exponential Moving Average (EMA)
             smooth_x = self.prev_x + self.smoothing_factor * (raw_x - self.prev_x)
             smooth_y = self.prev_y + self.smoothing_factor * (raw_y - self.prev_y)
 
-            # Cập nhật lịch sử
+            # Update history
             self.prev_x, self.prev_y = smooth_x, smooth_y
 
-            # Di chuyển chuột thực tế (duration=0 để tránh delay của pyautogui)
+            # Actually move the cursor (duration=0 to avoid pyautogui delay)
             pyautogui.moveTo(int(smooth_x), int(smooth_y), duration=0)
             return f"🖱 Cursor → ({int(smooth_x)}, {int(smooth_y)})"
         return None
 
     def _slide_previous(self, _=None):
-        """Chuyển về slide trước (phím Left Arrow)."""
+        """Go to the previous slide (Left Arrow key)."""
         pyautogui.press("left")
-        return "⬅ Slide trước"
+        return "⬅ Previous slide"
 
     def _slide_next(self, _=None):
-        """Chuyển sang slide tiếp (phím Right Arrow)."""
+        """Go to the next slide (Right Arrow key)."""
         pyautogui.press("right")
-        return "➡ Slide tiếp"
+        return "➡ Next slide"
 
     def _left_click(self, _=None):
-        """Click chuột trái."""
+        """Left mouse click."""
         pyautogui.click()
         return "🖱 Left Click"
 
@@ -222,8 +222,8 @@ class GestureController:
 if __name__ == "__main__":
     print("Test GestureController:")
     controller = GestureController()
-    
-    # Test từng gesture
+
+    # Test each gesture
     for gesture in ["fist", "thumbs_up", "thumbs_down", "swipe_left", "swipe_right"]:
         result = controller.execute(gesture)
         print(f"  {gesture}: {result}")

@@ -1,1 +1,1 @@
-"""Hand Gesture Recognition - điều khiển máy tính bằng cử chỉ tay (CNN + MediaPipe)."""
+"""Hand Gesture Recognition - control your computer with hand gestures (CNN + MediaPipe)."""

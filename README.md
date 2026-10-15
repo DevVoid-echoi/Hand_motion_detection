@@ -1,61 +1,61 @@
 # 🖐 Hand Motion Detection
 
-Điều khiển máy tính bằng cử chỉ tay qua webcam. **MediaPipe** phát hiện 21 điểm khớp bàn tay, vẽ lại thành ảnh khung xương trên nền đen, rồi một mạng **CNN** (PyTorch) phân loại ảnh đó thành 1 trong 9 cử chỉ và ánh xạ sang hành động (play/pause, âm lượng, di chuột, chuyển slide…).
+Control your computer with hand gestures through a webcam. **MediaPipe** detects 21 hand landmarks, which are redrawn as a skeleton image on a black background; a **CNN** (PyTorch) then classifies that image into one of 9 gestures and maps it to an action (play/pause, volume, mouse movement, slide navigation…).
 
-Project còn kèm một bản cài đặt lại CNN bằng **NumPy thuần** (forward + backward) để minh hoạ cách mạng hoạt động bên trong.
+The project also includes a from-scratch re-implementation of the CNN in **pure NumPy** (forward + backward) to illustrate how the network works internally.
 
 ## Pipeline
 
 ```
-Webcam → MediaPipe HandLandmarker → Vẽ khung xương (nền đen) → Crop 64×64
-       → CNN → Softmax → Cử chỉ (+ phát hiện swipe theo chuyển động cổ tay)
-       → GestureController → Phím tắt / chuột / âm lượng
+Webcam → MediaPipe HandLandmarker → Draw skeleton (black background) → Crop 64×64
+       → CNN → Softmax → Gesture (+ swipe detection from wrist motion)
+       → GestureController → Hotkeys / mouse / volume
 ```
 
-Dùng ảnh khung xương thay vì ảnh thật giúp model không phụ thuộc vào màu da, ánh sáng hay phông nền.
+Using skeleton images instead of raw camera frames makes the model independent of skin color, lighting and background.
 
-## Cử chỉ và hành động
+## Gestures and actions
 
-| Cử chỉ        | Hành động                         |
+| Gesture       | Action                            |
 |---------------|-----------------------------------|
 | `fist`        | Play / Pause media                |
 | `open_palm`   | Mute / Unmute                     |
-| `thumbs_up`   | Tăng âm lượng 5%                  |
-| `thumbs_down` | Giảm âm lượng 5%                  |
-| `peace`       | Chụp màn hình (`Win+Shift+S`)     |
-| `point`       | Di chuột theo đầu ngón trỏ        |
-| `pinch`       | Click chuột trái                  |
-| `swipe_left`  | Slide trước (phím ←)              |
-| `swipe_right` | Slide tiếp (phím →)               |
+| `thumbs_up`   | Volume up 5%                      |
+| `thumbs_down` | Volume down 5%                    |
+| `peace`       | Screenshot (`Win+Shift+S`)        |
+| `point`       | Move cursor with index fingertip  |
+| `pinch`       | Left click                        |
+| `swipe_left`  | Previous slide (← key)            |
+| `swipe_right` | Next slide (→ key)                |
 
-`swipe_left` / `swipe_right` được nhận diện theo chuyển động của cổ tay trong 0.5s, không qua CNN.
+`swipe_left` / `swipe_right` are detected from wrist movement within 0.5s, not by the CNN.
 
-## Cấu trúc thư mục
+## Project structure
 
 ```
 Hand_motion_detection/
 ├── main.py                    # Entry point (CLI)
 ├── requirements.txt
 ├── hand_gesture/
-│   ├── config.py              # Đường dẫn, danh sách cử chỉ, hyperparameters
-│   ├── landmarks.py           # MediaPipe: khởi tạo, vẽ khung xương, crop tay
-│   ├── collect_data.py        # Thu thập ảnh từ webcam
+│   ├── config.py              # Paths, gesture list, hyperparameters
+│   ├── landmarks.py           # MediaPipe: setup, skeleton drawing, hand cropping
+│   ├── collect_data.py        # Collect images from the webcam
 │   ├── dataset.py             # Dataset + augmentation + DataLoader
-│   ├── model.py               # Kiến trúc HandGestureCNN
-│   ├── train.py               # Huấn luyện + early stopping
-│   ├── predict.py             # Nhận diện real-time
-│   ├── gesture_controller.py  # Ánh xạ cử chỉ → hành động
-│   ├── gui.py                 # Giao diện Tkinter
-│   └── numpy_cnn.py           # CNN cài đặt bằng NumPy (forward + backward)
-├── dataset/                   # 9 thư mục × 200 ảnh khung xương 64×64
+│   ├── model.py               # HandGestureCNN architecture
+│   ├── train.py               # Training + early stopping
+│   ├── predict.py             # Real-time recognition
+│   ├── gesture_controller.py  # Gesture → action mapping
+│   ├── gui.py                 # Tkinter GUI
+│   └── numpy_cnn.py           # CNN implemented in NumPy (forward + backward)
+├── dataset/                   # 9 folders × 200 skeleton images (64×64)
 └── models/
-    ├── best_model.pth         # Trọng số CNN đã train
-    └── hand_landmarker.task   # Model MediaPipe Hand Landmarker
+    ├── best_model.pth         # Trained CNN weights
+    └── hand_landmarker.task   # MediaPipe Hand Landmarker model
 ```
 
-## Cài đặt
+## Installation
 
-Yêu cầu Python 3.10+ và webcam.
+Requires Python 3.10+ and a webcam.
 
 ```bash
 python -m venv .venv
@@ -63,40 +63,40 @@ source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-> Chế độ GUI cần Tkinter. Trên macOS + Homebrew Python: `brew install python-tk`.
+> GUI mode requires Tkinter. On macOS with Homebrew Python: `brew install python-tk`.
 
-## Sử dụng
+## Usage
 
 ```bash
-python main.py                  # Mở GUI (mặc định)
-python main.py --mode collect   # Thu thập dữ liệu
-python main.py --mode train     # Huấn luyện model
-python main.py --mode predict   # Demo nhận diện (không điều khiển máy)
-python main.py --mode control   # Điều khiển máy tính bằng cử chỉ
+python main.py                  # Open the GUI (default)
+python main.py --mode collect   # Collect data
+python main.py --mode train     # Train the model
+python main.py --mode predict   # Recognition demo (no computer control)
+python main.py --mode control   # Control the computer with gestures
 ```
 
-Repo đã có sẵn dataset và `models/best_model.pth`, nên có thể chạy `predict` / `control` ngay.
+The repo already ships with the dataset and `models/best_model.pth`, so you can run `predict` / `control` right away.
 
-### 1. Thu thập dữ liệu
+### 1. Data collection
 
-| Phím | Chức năng                    |
+| Key  | Function                     |
 |------|------------------------------|
-| `S`  | Bật / tắt chụp tự động       |
-| `C`  | Chụp 1 ảnh                   |
-| `N`  | Chuyển sang cử chỉ tiếp theo |
-| `Q`  | Thoát                        |
+| `S`  | Toggle auto capture          |
+| `C`  | Capture a single image       |
+| `N`  | Move to the next gesture     |
+| `Q`  | Quit                         |
 
-Ảnh được lưu vào `dataset/<gesture>/`. Mặc định thu 200 ảnh mỗi cử chỉ; nên thay đổi góc tay liên tục khi chụp.
+Images are saved to `dataset/<gesture>/`. By default 200 images are collected per gesture; keep changing your hand angle while capturing.
 
-### 2. Huấn luyện
+### 2. Training
 
-Chia train/val 80/20, dùng Adam + `ReduceLROnPlateau`, dừng sớm sau 7 epoch nếu `val_loss` không giảm. Model tốt nhất được lưu vào `models/best_model.pth`.
+80/20 train/val split, Adam + `ReduceLROnPlateau`, early stopping after 7 epochs without `val_loss` improvement. The best model is saved to `models/best_model.pth`.
 
-### 3. Điều khiển
+### 3. Control
 
-Nhấn `Q` trong cửa sổ camera để thoát. `pyautogui` có failsafe: đưa chuột vào góc màn hình để dừng khẩn cấp.
+Press `Q` in the camera window to quit. `pyautogui` has a failsafe: move the mouse into a screen corner for an emergency stop.
 
-## Kiến trúc CNN
+## CNN architecture
 
 ```
 Input 3×64×64
@@ -107,18 +107,18 @@ Input 3×64×64
            → FC 128 → ReLU → Dropout(0.3) → FC 9
 ```
 
-Khoảng 4.36 triệu tham số. Các hyperparameter đều nằm trong [hand_gesture/config.py](hand_gesture/config.py).
+About 4.36 million parameters. All hyperparameters live in [hand_gesture/config.py](hand_gesture/config.py).
 
-## CNN bằng NumPy
+## NumPy CNN
 
-[hand_gesture/numpy_cnn.py](hand_gesture/numpy_cnn.py) cài đặt lại đúng kiến trúc trên bằng NumPy:
+[hand_gesture/numpy_cnn.py](hand_gesture/numpy_cnn.py) re-implements the exact architecture above in NumPy:
 
-- `forward_with_cache`: forward cho batch `(N, C, H, W)`, có BatchNorm (train/eval, running stats) và inverted dropout
-- `backward`: lan truyền ngược qua toàn mạng, trả về gradient cùng key với `params`
+- `forward_with_cache`: forward pass for a `(N, C, H, W)` batch, with BatchNorm (train/eval, running stats) and inverted dropout
+- `backward`: backpropagation through the whole network, returning gradients with the same keys as `params`
 
-Kết quả đã được kiểm chứng: forward khớp `best_model.pth` (sai số ~1e-14), gradient khớp PyTorch autograd và finite-difference.
+Verified results: the forward pass matches `best_model.pth` (error ~1e-14), and gradients match PyTorch autograd and finite differences.
 
-## Lưu ý theo hệ điều hành
+## OS notes
 
-- **Windows:** hỗ trợ đầy đủ. Âm lượng điều khiển trực tiếp qua `pycaw`.
-- **macOS / Linux:** âm lượng dùng phím media qua `pyautogui`. Phím tắt chụp màn hình `Win+Shift+S` chỉ có trên Windows. Trên macOS cần cấp quyền Camera và Accessibility cho Terminal / IDE.
+- **Windows:** fully supported. Volume is controlled directly via `pycaw`.
+- **macOS / Linux:** volume uses media keys via `pyautogui`. The `Win+Shift+S` screenshot shortcut only exists on Windows. On macOS, grant Camera and Accessibility permissions to your Terminal / IDE.
