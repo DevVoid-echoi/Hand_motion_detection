@@ -1,5 +1,5 @@
 """
-model.py - Định nghĩa kiến trúc CNN cho nhận diện cử chỉ tay
+model.py - CNN architecture for hand gesture recognition
 """
 import torch
 import torch.nn as nn
@@ -8,9 +8,9 @@ from .config import IMG_SIZE, IMG_CHANNELS, NUM_CLASSES
 
 class HandGestureCNN(nn.Module):
     """
-    CNN 3 lớp convolution cho bài toán phân loại cử chỉ tay.
-    
-    Kiến trúc:
+    3-layer convolutional CNN for hand gesture classification.
+
+    Architecture:
         Conv Block 1: Conv2d(3, 32) → BatchNorm → ReLU → MaxPool
         Conv Block 2: Conv2d(32, 64) → BatchNorm → ReLU → MaxPool
         Conv Block 3: Conv2d(64, 128) → BatchNorm → ReLU → MaxPool
@@ -42,7 +42,7 @@ class HandGestureCNN(nn.Module):
             nn.MaxPool2d(kernel_size=2, stride=2),
         )
 
-        # Tính kích thước feature map sau conv layers
+        # Feature map size after the conv layers
         self._feature_size = 128 * (IMG_SIZE // 8) * (IMG_SIZE // 8)  # 128 * 8 * 8
 
         # === Classifier ===
@@ -60,7 +60,7 @@ class HandGestureCNN(nn.Module):
     def forward(self, x):
         """
         Forward pass.
-        
+
         Args:
             x: Tensor shape (batch, 3, 64, 64)
         Returns:
@@ -72,33 +72,33 @@ class HandGestureCNN(nn.Module):
 
 
 def get_model(num_classes=NUM_CLASSES, device="cpu"):
-    """Tạo model và chuyển sang device."""
+    """Create the model and move it to the device."""
     model = HandGestureCNN(num_classes=num_classes)
     model = model.to(device)
     return model
 
 
 def load_model(model_path, num_classes=NUM_CLASSES, device="cpu"):
-    """Load model đã train từ file .pth."""
+    """Load a trained model from a .pth file."""
     model = get_model(num_classes=num_classes, device=device)
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.eval()
     return model
 
 
-# === Test nhanh model ===
+# === Quick model test ===
 if __name__ == "__main__":
     model = get_model()
     print(model)
-    
+
     # Test forward pass
     dummy_input = torch.randn(1, IMG_CHANNELS, IMG_SIZE, IMG_SIZE)
     output = model(dummy_input)
     print(f"\nInput shape:  {dummy_input.shape}")
     print(f"Output shape: {output.shape}")
     print(f"Num classes:  {NUM_CLASSES}")
-    
-    # Đếm parameters
+
+    # Count parameters
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"\nTotal params:     {total_params:,}")

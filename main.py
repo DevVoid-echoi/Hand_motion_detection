@@ -1,27 +1,27 @@
 """
-main.py - Entry point cho project Hand Gesture Recognition
+main.py - Entry point for the Hand Gesture Recognition project
 
-Ví dụ:
-    python main.py                  # Mở giao diện GUI (mặc định)
-    python main.py --mode collect   # Thu thập dữ liệu từ webcam
-    python main.py --mode train     # Huấn luyện CNN
-    python main.py --mode predict   # Demo nhận diện real-time
-    python main.py --mode control   # Điều khiển máy tính bằng cử chỉ
+Examples:
+    python main.py                  # Open the GUI (default)
+    python main.py --mode collect   # Collect data from the webcam
+    python main.py --mode train     # Train the CNN
+    python main.py --mode predict   # Real-time recognition demo
+    python main.py --mode control   # Control the computer with gestures
 """
 import argparse
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Điều khiển máy tính bằng cử chỉ tay (CNN + MediaPipe)")
+    parser = argparse.ArgumentParser(description="Control your computer with hand gestures (CNN + MediaPipe)")
     parser.add_argument(
         "--mode",
         choices=["gui", "collect", "train", "predict", "control"],
         default="gui",
-        help="Chế độ chạy (mặc định: gui)",
+        help="Run mode (default: gui)",
     )
     args = parser.parse_args()
 
-    # Import trễ để chỉ load thư viện cần cho từng chế độ
+    # Lazy imports so each mode only loads the libraries it needs
     if args.mode == "gui":
         from hand_gesture.gui import main as run
     elif args.mode == "collect":

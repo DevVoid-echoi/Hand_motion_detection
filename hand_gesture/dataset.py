@@ -1,5 +1,5 @@
 """
-dataset.py - Dataset class và data augmentation cho training
+dataset.py - Dataset class and data augmentation for training
 """
 import os
 from PIL import Image
@@ -13,9 +13,9 @@ from .config import (
 
 class HandGestureDataset(Dataset):
     """
-    PyTorch Dataset để load ảnh cử chỉ tay từ thư mục.
-    
-    Cấu trúc thư mục:
+    PyTorch Dataset that loads hand gesture images from a directory.
+
+    Directory layout:
         dataset/
         ├── fist/
         │   ├── 001.jpg
@@ -32,35 +32,35 @@ class HandGestureDataset(Dataset):
     def __init__(self, root_dir=DATASET_DIR, transform=None):
         """
         Args:
-            root_dir: Đường dẫn đến thư mục dataset
-            transform: Torchvision transforms để áp dụng
+            root_dir: Path to the dataset directory
+            transform: Torchvision transforms to apply
         """
         self.root_dir = root_dir
         self.transform = transform
         self.samples = []  # List of (image_path, label_index)
         self.classes = GESTURES
 
-        # Load tất cả ảnh từ các thư mục con
+        # Load all images from the subdirectories
         for label_idx, gesture_name in enumerate(self.classes):
             gesture_dir = os.path.join(root_dir, gesture_name)
             if not os.path.exists(gesture_dir):
-                print(f"⚠ Cảnh báo: Thư mục '{gesture_name}' không tồn tại, bỏ qua.")
+                print(f"⚠ Warning: directory '{gesture_name}' does not exist, skipping.")
                 continue
-            
+
             for img_name in os.listdir(gesture_dir):
                 if img_name.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp')):
                     img_path = os.path.join(gesture_dir, img_name)
                     self.samples.append((img_path, label_idx))
 
-        print(f"✓ Loaded {len(self.samples)} ảnh từ {len(self.classes)} classes")
+        print(f"✓ Loaded {len(self.samples)} images from {len(self.classes)} classes")
 
     def __len__(self):
         return len(self.samples)
 
     def __getitem__(self, idx):
         img_path, label = self.samples[idx]
-        
-        # Load ảnh và chuyển sang RGB
+
+        # Load the image and convert to RGB
         image = Image.open(img_path).convert("RGB")
 
         if self.transform:
@@ -70,7 +70,7 @@ class HandGestureDataset(Dataset):
 
 
 def get_train_transform():
-    """Transform cho training data (có augmentation)."""
+    """Transform for training data (with augmentation)."""
     return transforms.Compose([
         transforms.Resize((IMG_SIZE, IMG_SIZE)),
         transforms.RandomHorizontalFlip(p=AUGMENTATION["random_horizontal_flip"]),
@@ -88,7 +88,7 @@ def get_train_transform():
 
 
 def get_val_transform():
-    """Transform cho validation data (không augmentation)."""
+    """Transform for validation data (no augmentation)."""
     return transforms.Compose([
         transforms.Resize((IMG_SIZE, IMG_SIZE)),
         transforms.ToTensor(),
@@ -100,23 +100,23 @@ def get_val_transform():
 
 
 def get_inference_transform():
-    """Transform cho inference (giống val, dùng khi predict real-time)."""
+    """Transform for inference (same as val, used for real-time prediction)."""
     return get_val_transform()
 
 
 def get_dataloaders(root_dir=DATASET_DIR, batch_size=BATCH_SIZE):
     """
-    Tạo train và validation DataLoader.
-    
+    Create train and validation DataLoaders.
+
     Returns:
         train_loader, val_loader, dataset
     """
-    # Tạo full dataset với train transform
+    # Create the full dataset with the train transform
     full_dataset = HandGestureDataset(root_dir=root_dir, transform=get_train_transform())
 
     if len(full_dataset) == 0:
         raise ValueError(
-            f"Dataset trống! Hãy thu thập dữ liệu trước bằng:\n"
+            f"Dataset is empty! Collect data first with:\n"
             f"  python main.py --mode collect"
         )
 
@@ -125,8 +125,8 @@ def get_dataloaders(root_dir=DATASET_DIR, batch_size=BATCH_SIZE):
     val_size = len(full_dataset) - train_size
     train_dataset, val_dataset = random_split(full_dataset, [train_size, val_size])
 
-    # Ghi đè transform cho val_dataset (bỏ augmentation)
-    # Lưu ý: random_split dùng subset nên ta cần wrapper
+    # Override the transform for val_dataset (no augmentation)
+    # Note: random_split returns Subsets, so we swap the underlying dataset
     val_dataset.dataset = HandGestureDataset(root_dir=root_dir, transform=get_val_transform())
 
     train_loader = DataLoader(
@@ -140,13 +140,13 @@ def get_dataloaders(root_dir=DATASET_DIR, batch_size=BATCH_SIZE):
     return train_loader, val_loader, full_dataset
 
 
-# === Test nhanh ===
+# === Quick test ===
 if __name__ == "__main__":
-    print("Kiểm tra dataset...")
+    print("Checking dataset...")
     try:
         train_loader, val_loader, dataset = get_dataloaders()
         for images, labels in train_loader:
             print(f"Batch shape: {images.shape}, Labels: {labels[:5]}")
             break
     except ValueError as e:
-        print(f"Lỗi: {e}")
+        print(f"Error: {e}")
