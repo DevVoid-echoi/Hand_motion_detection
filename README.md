@@ -45,8 +45,9 @@ Hand_motion_detection/
 │   ├── train.py               # Training + early stopping
 │   ├── predict.py             # Real-time recognition
 │   ├── gesture_controller.py  # Gesture → action mapping
-│   ├── gui.py                 # Tkinter GUI
-│   └── numpy_cnn.py           # CNN implemented in NumPy (forward + backward)
+│   └── gui.py                 # Tkinter GUI
+├── implement/
+│   └── cnn_numpy_implement.py # CNN implemented in NumPy (forward + backward)
 ├── dataset/                   # 9 folders × 200 skeleton images (64×64)
 └── models/
     ├── best_model.pth         # Trained CNN weights
@@ -111,7 +112,7 @@ About 4.36 million parameters. All hyperparameters live in [hand_gesture/config.
 
 ## NumPy CNN
 
-[hand_gesture/numpy_cnn.py](hand_gesture/numpy_cnn.py) re-implements the exact architecture above in NumPy:
+[implement/cnn_numpy_implement.py](implement/cnn_numpy_implement.py) re-implements the exact architecture above in NumPy:
 
 - `forward_with_cache`: forward pass for a `(N, C, H, W)` batch, with BatchNorm (train/eval, running stats) and inverted dropout
 - `backward`: backpropagation through the whole network, returning gradients with the same keys as `params`
