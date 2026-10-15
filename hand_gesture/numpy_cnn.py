@@ -1,3 +1,10 @@
+"""
+numpy_cnn.py - Cài đặt lại HandGestureCNN (model.py) bằng NumPy thuần
+
+Gồm forward (Conv → BatchNorm → ReLU → MaxPool x3 → FC 8192 → 512 → 128 → 9),
+backward cho từng lớp và toàn mạng. Đã kiểm chứng với PyTorch autograd và
+trọng số models/best_model.pth.
+"""
 import numpy as np
 
 #           -----Khởi tạo tham số-----
