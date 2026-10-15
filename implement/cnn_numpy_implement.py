@@ -1,5 +1,5 @@
 """
-numpy_cnn.py - Re-implementation of HandGestureCNN (model.py) in pure NumPy
+cnn_numpy_implement.py - Re-implementation of HandGestureCNN (hand_gesture/model.py) in pure NumPy
 
 Includes the forward pass (Conv → BatchNorm → ReLU → MaxPool x3 → FC 8192 → 512 → 128 → 9),
 backward for each layer and for the whole network. Verified against PyTorch autograd and
