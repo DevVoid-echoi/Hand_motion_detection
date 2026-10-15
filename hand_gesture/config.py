@@ -4,9 +4,10 @@ config.py - Cấu hình chung cho project Hand Gesture Recognition
 import os
 
 # ==================== Đường dẫn ====================
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # Thư mục gốc project
 DATASET_DIR = os.path.join(BASE_DIR, "dataset")
 MODEL_SAVE_PATH = os.path.join(BASE_DIR, "models", "best_model.pth")
+HAND_LANDMARKER_PATH = os.path.join(BASE_DIR, "models", "hand_landmarker.task")
 
 # ==================== Danh sách cử chỉ ====================
 GESTURES = [

@@ -6,9 +6,9 @@ import time
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from model import get_model
-from dataset import get_dataloaders
-from config import (
+from .model import get_model
+from .dataset import get_dataloaders
+from .config import (
     MODEL_SAVE_PATH, NUM_CLASSES, NUM_EPOCHS,
     LEARNING_RATE, EARLY_STOP_PATIENCE
 )

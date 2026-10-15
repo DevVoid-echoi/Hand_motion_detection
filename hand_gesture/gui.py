@@ -1,3 +1,6 @@
+"""
+gui.py - Giao diện Tkinter: thu thập dữ liệu, huấn luyện và chạy điều khiển
+"""
 import tkinter as tk
 from tkinter import ttk, scrolledtext
 import threading
@@ -116,7 +119,7 @@ class HandGestureApp:
 
     def check_dataset(self):
         """Kiểm tra và in ra số lượng ảnh đã thu thập cho mỗi cử chỉ."""
-        from config import DATASET_DIR, GESTURES, COLLECT_NUM_SAMPLES
+        from .config import DATASET_DIR, GESTURES, COLLECT_NUM_SAMPLES
         
         print("=" * 50)
         print("  KIỂM TRA DATASET")
@@ -170,18 +173,22 @@ class HandGestureApp:
         print("  5. Nhấn N khi muốn chuyển sang cử chỉ tiếp")
         print("  6. Nhấn Q khi hoàn tất tất cả")
         print("─" * 50)
-        from collect_data import collect_gesture_data
+        from .collect_data import collect_gesture_data
         self._run_script_in_thread(collect_gesture_data, "Collect Data")
 
     def run_train(self):
-        from train import train_model
+        from .train import train_model
         self._run_script_in_thread(train_model, "Train Model")
 
     def run_controller(self):
-        from predict import run_realtime_controller
+        from .predict import run_realtime_controller
         self._run_script_in_thread(run_realtime_controller, "Run Controller")
 
-if __name__ == "__main__":
+def main():
     root = tk.Tk()
     app = HandGestureApp(root)
     root.mainloop()
+
+
+if __name__ == "__main__":
+    main()

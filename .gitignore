@@ -1,2 +1,26 @@
-.DS_Store
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Virtual environments
 .venv/
+venv/
+env/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Claude Code (local, per-user settings)
+.claude/settings.local.json
+
+# Training artifacts (trừ model chính models/best_model.pth)
+runs/
+*.log
+models/*.pth
+!models/best_model.pth

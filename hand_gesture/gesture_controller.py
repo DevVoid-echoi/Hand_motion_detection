@@ -3,7 +3,7 @@ gesture_controller.py - Ánh xạ cử chỉ tay sang hành động điều khi�
 """
 import time
 import pyautogui
-from config import COOLDOWN_SECONDS
+from .config import COOLDOWN_SECONDS
 
 # Tắt failsafe pyautogui (cần thiết nếu chuột di chuyển nhiều)
 pyautogui.FAILSAFE = True

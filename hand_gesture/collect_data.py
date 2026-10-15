@@ -7,13 +7,8 @@ import cv2
 import time
 import numpy as np
 import mediapipe as mp
-from mediapipe.tasks import python
-from mediapipe.tasks.python import vision
-from config import DATASET_DIR, GESTURES, CAMERA_INDEX, COLLECT_NUM_SAMPLES, IMG_SIZE, BASE_DIR
-
-
-# Đường dẫn tới file model hand_landmarker
-HAND_LANDMARKER_PATH = os.path.join(BASE_DIR, "models", "hand_landmarker.task")
+from .config import DATASET_DIR, GESTURES, CAMERA_INDEX, COLLECT_NUM_SAMPLES, IMG_SIZE
+from .landmarks import create_hand_landmarker, draw_landmarks, crop_hand
 
 
 def safe_imwrite(filepath, img):
@@ -38,37 +33,6 @@ def create_dataset_dirs():
     print(f"✓ Đã tạo {len(GESTURES)} thư mục trong {DATASET_DIR}")
 
 
-def get_hand_region(frame, hand_landmarks, padding=40):
-    """
-    Cắt vùng chứa bàn tay từ frame dựa trên landmarks.
-    
-    Args:
-        frame: Ảnh gốc từ webcam
-        hand_landmarks: MediaPipe NormalizedLandmark list
-        padding: Pixel mở rộng xung quanh bounding box
-        
-    Returns:
-        Ảnh vùng tay đã crop, hoặc None nếu không valid
-    """
-    h, w, _ = frame.shape
-    
-    # Lấy bounding box từ landmarks
-    x_coords = [lm.x * w for lm in hand_landmarks]
-    y_coords = [lm.y * h for lm in hand_landmarks]
-    
-    x_min = int(max(0, min(x_coords) - padding))
-    y_min = int(max(0, min(y_coords) - padding))
-    x_max = int(min(w, max(x_coords) + padding))
-    y_max = int(min(h, max(y_coords) + padding))
-    
-    if x_max - x_min < 10 or y_max - y_min < 10:
-        return None
-    
-    hand_crop = frame[y_min:y_max, x_min:x_max]
-    hand_crop = cv2.resize(hand_crop, (IMG_SIZE, IMG_SIZE))
-    return hand_crop
-
-
 def collect_gesture_data():
     """
     Chạy vòng lặp thu thập dữ liệu.
@@ -81,19 +45,7 @@ def collect_gesture_data():
     """
     create_dataset_dirs()
     
-    # Khởi tạo MediaPipe HandLandmarker (Tasks API v1.0+)
-    # Đọc model dưới dạng bytes để tránh lỗi Unicode path trên Windows
-    with open(HAND_LANDMARKER_PATH, "rb") as f:
-        model_data = f.read()
-    base_options = python.BaseOptions(model_asset_buffer=model_data)
-    options = vision.HandLandmarkerOptions(
-        base_options=base_options,
-        running_mode=vision.RunningMode.IMAGE,
-        num_hands=1,
-        min_hand_detection_confidence=0.7,
-        min_tracking_confidence=0.5,
-    )
-    hand_landmarker = vision.HandLandmarker.create_from_options(options)
+    hand_landmarker = create_hand_landmarker()
 
     cap = cv2.VideoCapture(CAMERA_INDEX)
     if not cap.isOpened():
@@ -145,14 +97,14 @@ def collect_gesture_data():
             if detection_result.hand_landmarks:
                 for landmarks in detection_result.hand_landmarks:
                     # Vẽ landmarks lên frame thật (để hiển thị cho người dùng xem)
-                    _draw_landmarks_on_frame(frame, landmarks)
+                    draw_landmarks(frame, landmarks)
                     
                     # TẠO ẢNH KHUNG XƯƠNG TRÊN NỀN ĐEN (để AI học)
                     black_canvas = np.zeros_like(frame)
-                    _draw_landmarks_on_frame(black_canvas, landmarks)
+                    draw_landmarks(black_canvas, landmarks)
                     
                     # Cắt vùng tay từ ảnh khung xương thay vì ảnh thật
-                    hand_crop = get_hand_region(black_canvas, landmarks)
+                    hand_crop = crop_hand(black_canvas, landmarks, size=IMG_SIZE)
 
             # Hiển thị thông tin
             status_text = f"Gesture: {gesture} | Count: {count}/{COLLECT_NUM_SAMPLES}"
@@ -211,60 +163,6 @@ def collect_gesture_data():
     cv2.destroyAllWindows()
     hand_landmarker.close()
     print("\n✓ Hoàn tất thu thập dữ liệu!")
-
-
-def _draw_landmarks_on_frame(frame, landmarks):
-    """
-    Vẽ khung xương tay lên frame với màu sắc phân biệt từng ngón tay.
-    Mỗi ngón tay có một màu riêng để CNN dễ học đặc trưng hình dạng hơn.
-    Nét vẽ dày và điểm to để không bị mất chi tiết khi resize xuống 64x64.
-    """
-    h, w, _ = frame.shape
-
-    # Màu sắc riêng cho từng ngón tay (BGR format)
-    FINGER_COLORS = {
-        "thumb":  (0, 128, 255),   # Cam - Ngón cái
-        "index":  (0, 255, 0),     # Xanh lá - Ngón trỏ
-        "middle": (255, 255, 0),   # Vàng - Ngón giữa
-        "ring":   (255, 0, 255),   # Tím - Ngón áp út
-        "pinky":  (0, 255, 255),   # Xanh cyan - Ngón út
-        "palm":   (200, 200, 200), # Xám - Lòng bàn tay
-    }
-
-    # Kết nối cho từng ngón tay
-    FINGER_CONNECTIONS = {
-        "thumb":  [(0, 1), (1, 2), (2, 3), (3, 4)],
-        "index":  [(0, 5), (5, 6), (6, 7), (7, 8)],
-        "middle": [(0, 9), (9, 10), (10, 11), (11, 12)],
-        "ring":   [(0, 13), (13, 14), (14, 15), (15, 16)],
-        "pinky":  [(0, 17), (17, 18), (18, 19), (19, 20)],
-        "palm":   [(5, 9), (9, 13), (13, 17), (0, 5), (0, 17)],
-    }
-
-    points = [(int(lm.x * w), int(lm.y * h)) for lm in landmarks]
-
-    LINE_THICKNESS = 4   # Nét dày để rõ sau khi resize
-    JOINT_RADIUS   = 6   # Điểm khớp to
-
-    # Vẽ từng ngón tay với màu riêng
-    for finger_name, connections in FINGER_CONNECTIONS.items():
-        color = FINGER_COLORS[finger_name]
-        for start_idx, end_idx in connections:
-            if start_idx < len(points) and end_idx < len(points):
-                cv2.line(frame, points[start_idx], points[end_idx],
-                         color, LINE_THICKNESS, cv2.LINE_AA)
-
-    # Vẽ các điểm khớp
-    for i, point in enumerate(points):
-        # Ngón cái (0-4)
-        if i <= 4:   color = FINGER_COLORS["thumb"]
-        elif i <= 8:  color = FINGER_COLORS["index"]
-        elif i <= 12: color = FINGER_COLORS["middle"]
-        elif i <= 16: color = FINGER_COLORS["ring"]
-        else:         color = FINGER_COLORS["pinky"]
-        cv2.circle(frame, point, JOINT_RADIUS, color, -1, cv2.LINE_AA)
-        # Viền trắng xung quanh điểm khớp để nổi bật hơn
-        cv2.circle(frame, point, JOINT_RADIUS + 1, (255, 255, 255), 1, cv2.LINE_AA)
 
 
 if __name__ == "__main__":

@@ -3,7 +3,7 @@ model.py - Định nghĩa kiến trúc CNN cho nhận diện cử chỉ tay
 """
 import torch
 import torch.nn as nn
-from config import IMG_SIZE, IMG_CHANNELS, NUM_CLASSES
+from .config import IMG_SIZE, IMG_CHANNELS, NUM_CLASSES
 
 
 class HandGestureCNN(nn.Module):

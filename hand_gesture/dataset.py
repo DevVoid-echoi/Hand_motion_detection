@@ -5,7 +5,7 @@ import os
 from PIL import Image
 from torch.utils.data import Dataset, DataLoader, random_split
 from torchvision import transforms
-from config import (
+from .config import (
     DATASET_DIR, IMG_SIZE, GESTURES, TRAIN_SPLIT,
     BATCH_SIZE, AUGMENTATION
 )
